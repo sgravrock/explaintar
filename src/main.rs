@@ -130,6 +130,7 @@ fn test_size_small() {
     assert_eq!(11, Header::from_block(block).size());
 }
 
+#[cfg(test)]
 fn block_from_visual(visual: &str) -> [u8;512] {
     let mut block = [0; 512];
     let chars: Vec<char> = visual.chars().collect();
