@@ -1,0 +1,6 @@
+[package]
+name = "explaintar"
+version = "0.1.0"
+authors = ["Stephen Gravrock <sdg@panix.com>"]
+
+[dependencies]
