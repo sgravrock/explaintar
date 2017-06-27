@@ -13,6 +13,8 @@ fn main() {
             Ok(n) => println!("The name of the first entry is {}", n),
             Err(e) => println!("The first entry's name is invalid: {}", e)
         };
+
+        println!("The file in the first entry has size {} bytes", header.size());
     } else {
         println!("Bad magic in the first header.");
     }
@@ -62,11 +64,33 @@ impl Header {
         String::from_utf8(bytes)
     }
 
+    fn size(self: &Header) -> usize {
+        let bytes = self.size_field();
+        parse_octal(&bytes[0..SIZE_LEN-1]) // Ignore the terminating space.
+    }
+
     fn magic_field(self: &Header) -> &[u8] {
         let offset = NAME_LEN + MODE_LEN + UID_LEN + GID_LEN + SIZE_LEN +
             MTIME_LEN + CHECKSUM_LEN + TYPEFLAG_LEN + LINKNAME_LEN;
         &self.block[offset..(offset + MAGIC_LEN)]
     }
+
+    fn size_field(self: &Header) -> &[u8] {
+        let offset = NAME_LEN + MODE_LEN + UID_LEN + GID_LEN;
+        &self.block[offset..(offset + SIZE_LEN)]
+    }
+}
+
+// TODO: don't panic if this fails,
+// or at least panic somewhere else.
+fn parse_octal(bytes: &[u8]) -> usize {
+    bytes.iter().fold(0, |acc, b| {
+        let n = *b as usize;
+        if n < 48 || n > 55 {
+            panic!("Not an octal digit: {}", b);
+        }
+        acc * 8 + n - 48
+    })
 }
 
 fn find_zero(buf: &[u8; 512], maxlen: usize) -> Option<usize> {
@@ -98,6 +122,12 @@ fn test_name_short() {
 fn test_name_exactly_100() {
     let block = block_from_visual("long________________________________________________________________________________________________x");
     assert_eq!("long________________________________________________________________________________________________", Header::from_block(block).name().unwrap());
+}
+
+#[test]
+fn test_size_small() {
+    let block = block_from_visual("11bytes^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@000644 ^@000765 ^@000024 ^@00000000013 ");
+    assert_eq!(11, Header::from_block(block).size());
 }
 
 fn block_from_visual(visual: &str) -> [u8;512] {
