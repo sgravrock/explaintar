@@ -67,10 +67,6 @@ impl Header {
             MTIME_LEN + CHECKSUM_LEN + TYPEFLAG_LEN + LINKNAME_LEN;
         &self.block[offset..(offset + MAGIC_LEN)]
     }
-
-    fn name_field(self: &Header) -> &[u8] {
-        &self.block[0..NAME_LEN]
-    }
 }
 
 fn find_zero(buf: &[u8; 512], maxlen: usize) -> Option<usize> {
