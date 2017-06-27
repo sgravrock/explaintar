@@ -3,20 +3,40 @@ use std::string::FromUtf8Error;
 
 fn main() {
     let mut stdin = io::stdin();
-    let block = read_block(&mut stdin);
-    let header = Header::from_block(block);
+    let mut i = 0;
 
-    if header.has_magic() {
-        println!("This looks like a valid tar file.");
+    loop {
+        let block = read_block(&mut stdin);
+        let header = Header::from_block(block);
+
+        if i == 0 {
+            if header.has_magic() {
+                println!("This looks like a valid tar file.");
+            } else {
+                println!("Bad magic in the first header.");
+                break;
+            }
+        }
+
+        if header.is_null() {
+            println!("Entry {} is null", i);
+            break;
+        }
+
+        println!("Entry {}", i);
 
         match header.name() {
-            Ok(n) => println!("The name of the first entry is {}", n),
-            Err(e) => println!("The first entry's name is invalid: {}", e)
+            Ok(n) => println!("Name {}", n),
+            Err(e) => println!("Invalid name: {}", e)
         };
 
-        println!("The file in the first entry has size {} bytes", header.size());
-    } else {
-        println!("Bad magic in the first header.");
+        println!("Size {} bytes", header.size());
+        println!("");
+        i += 1;
+
+        for _ in 0..num_data_blocks(header.size()) {
+            read_block(&mut stdin);
+        }
     }
 }
 
@@ -56,6 +76,12 @@ impl Header {
             Ok(actual) => actual == String::from("ustar\0"),
             _ => false,
         }
+    }
+
+    fn is_null(self: &Header) -> bool {
+        let offset = NAME_LEN + MODE_LEN + UID_LEN + GID_LEN + SIZE_LEN +
+            MTIME_LEN + CHECKSUM_LEN;
+        self.block[offset] == 0
     }
 
     fn name(self: &Header) -> Result<String, FromUtf8Error> {
@@ -103,13 +129,20 @@ fn find_zero(buf: &[u8; 512], maxlen: usize) -> Option<usize> {
     None
 }
 
-
 #[test]
 fn test_has_magic() {
     let good = block_from_visual("somefile^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@000644 ^@000765 ^@000024 ^@00000000000 13124523641 013414^@ 0^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@ustar");
     let bad = block_from_visual("somefile^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@000644 ^@000765 ^@000024 ^@00000000000 13124523641 013414^@ 0^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@nope!");
     assert_eq!(true, Header::from_block(good).has_magic());
     assert_eq!(false, Header::from_block(bad).has_magic());
+}
+
+#[test]
+fn test_is_null() {
+    let null_block = [0; 512];
+    let non_null_block = block_from_visual("somefile^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@000644 ^@000765 ^@000024 ^@00000000000 13124523641 013414^@ 0^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@^@ustar");
+    assert_eq!(true, Header::from_block(null_block).is_null());
+    assert_eq!(false, Header::from_block(non_null_block).is_null());
 }
 
 #[test]
@@ -161,4 +194,16 @@ fn test_block_from_visual() {
     assert_eq!(0, block[8]); // ^@ becomes 0
     assert_eq!(48, block[101]); // 0 ascii
     assert_eq!(88, block[511]);
+}
+
+fn num_data_blocks(entry_size: usize) -> usize {
+   f32::ceil(entry_size as f32 / 512.0) as usize
+}
+
+#[test]
+fn test_num_data_blocks() {
+    assert_eq!(0, num_data_blocks(0));
+    assert_eq!(1, num_data_blocks(1));
+    assert_eq!(1, num_data_blocks(512));
+    assert_eq!(2, num_data_blocks(513));
 }
