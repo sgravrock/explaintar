@@ -1,13 +1,14 @@
-use std::io::{self, Read, Stdin};
+use std::io::{self, Read};
 use std::string::FromUtf8Error;
+#[cfg(test)]
+use std::fs::File;
 
 fn main() {
-    let mut stdin = io::stdin();
+    let iter = EntryIterator::from_stream(io::stdin());
     let mut i = 0;
 
-    loop {
-        let block = read_block(&mut stdin);
-        let header = Header::from_block(block);
+    for entry in iter {
+        let header = entry.header;
 
         if i == 0 {
             if header.has_magic() {
@@ -33,20 +34,12 @@ fn main() {
         println!("Size {} bytes", header.size());
         println!("");
         i += 1;
-
-        for _ in 0..num_data_blocks(header.size()) {
-            read_block(&mut stdin);
-        }
     }
 }
 
-fn read_block(stdin: &mut Stdin) -> [u8; 512] {
-    let mut block: [u8; 512] = [0; 512];
-    match stdin.read(&mut block) {
-        Ok(512) => block,
-        Ok(n) => panic!("Expected to read 512 bytes but got {}", n),
-        Err(e) => panic!("Read error: {}", e)
-    }
+
+struct Entry {
+    header: Header
 }
 
 struct Header {
@@ -207,3 +200,89 @@ fn test_num_data_blocks() {
     assert_eq!(1, num_data_blocks(512));
     assert_eq!(2, num_data_blocks(513));
 }
+
+
+struct BlockIterator<T: Read> {
+    stream: T
+}
+
+impl <T: Read> BlockIterator<T> {
+    fn from_stream(stream: T) -> BlockIterator<T> {
+        BlockIterator { stream }
+    }
+}
+
+impl <T: Read> Iterator for BlockIterator<T> {
+    type Item = [u8; 512];
+
+    fn next(&mut self) -> Option<[u8; 512]> {
+        let mut block: [u8; 512] = [0; 512];
+        match self.stream.read(&mut block) {
+            Ok(512) => Some(block),
+            Ok(0) => None,
+            Ok(n) => panic!("Expected to read 512 bytes but got {}", n),
+            Err(e) => panic!("Read error: {}", e)
+        }
+    }
+}
+
+#[test]
+fn test_block_iterator() {
+    let file = File::open("fixtures/simple.tar").unwrap();
+    let subject = BlockIterator::from_stream(file);
+    let blocks: Vec<[u8; 512]> = subject.collect();
+    assert_eq!(7, blocks.len());
+}
+
+
+struct EntryIterator<T: Read> {
+    iter: BlockIterator<T>,
+    done: bool
+}
+
+impl <T: Read> EntryIterator<T> {
+    fn from_stream(stream: T) -> EntryIterator<T> {
+        EntryIterator {
+            iter: BlockIterator::from_stream(stream),
+            done: false
+        }
+    }
+
+    fn _make_entry(&mut self, block: [u8; 512]) -> Entry {
+        let header = Header::from_block(block);
+
+        if header.is_null() {
+            self.done = true;
+        } else {
+            for _ in 0..num_data_blocks(header.size()) {
+                self.iter.next();
+            }
+        }
+
+        Entry { header }
+    }
+}
+
+impl <T: Read> Iterator for EntryIterator<T> {
+    type Item = Entry;
+
+    fn next(&mut self) -> Option<Entry> {
+        if self.done {
+            return None;
+        }
+
+        self.iter.next().map(|b| self._make_entry(b))
+    }
+}
+
+#[test]
+fn test_entry_iterator() {
+    let file = File::open("fixtures/simple.tar").unwrap();
+    let subject = EntryIterator::from_stream(file);
+    let entries: Vec<Entry> = subject.collect();
+    assert_eq!(3, entries.len());
+    assert_eq!("1", entries[0].header.name().unwrap());
+    assert_eq!("513", entries[1].header.name().unwrap());
+    assert_eq!(true, entries[2].header.is_null());
+}
+
