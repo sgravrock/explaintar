@@ -62,7 +62,7 @@ impl Header {
         Header { block }
     }
 
-    fn has_magic(self: &Header) -> bool {
+    fn has_magic(&self) -> bool {
         let maybe_magic = String::from_utf8(self.magic_field().to_vec());
 
         match maybe_magic {
@@ -71,29 +71,29 @@ impl Header {
         }
     }
 
-    fn is_null(self: &Header) -> bool {
+    fn is_null(&self) -> bool {
         let offset = NAME_LEN + MODE_LEN + UID_LEN + GID_LEN + SIZE_LEN + MTIME_LEN + CHECKSUM_LEN;
         self.block[offset] == 0
     }
 
-    fn name(self: &Header) -> Result<String, FromUtf8Error> {
+    fn name(&self) -> Result<String, FromUtf8Error> {
         let len = find_zero(&self.block, NAME_LEN).unwrap_or(NAME_LEN);
         let bytes = self.block[0..len].to_vec();
         String::from_utf8(bytes)
     }
 
-    fn size(self: &Header) -> usize {
+    fn size(&self) -> usize {
         let bytes = self.size_field();
         parse_octal(&bytes[0..SIZE_LEN - 1]) // Ignore the terminating space.
     }
 
-    fn magic_field(self: &Header) -> &[u8] {
+    fn magic_field(&self) -> &[u8] {
         let offset = NAME_LEN + MODE_LEN + UID_LEN + GID_LEN + SIZE_LEN + MTIME_LEN +
                      CHECKSUM_LEN + TYPEFLAG_LEN + LINKNAME_LEN;
         &self.block[offset..(offset + MAGIC_LEN)]
     }
 
-    fn size_field(self: &Header) -> &[u8] {
+    fn size_field(&self) -> &[u8] {
         let offset = NAME_LEN + MODE_LEN + UID_LEN + GID_LEN;
         &self.block[offset..(offset + SIZE_LEN)]
     }
