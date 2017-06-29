@@ -1,7 +1,5 @@
 use std::io::{self, Read};
 use std::string::FromUtf8Error;
-#[cfg(test)]
-use std::fs::File;
 
 fn main() {
     let iter = EntryIterator::from_stream(io::stdin());
@@ -225,8 +223,8 @@ impl<T: Read> Iterator for BlockIterator<T> {
 
 #[test]
 fn test_block_iterator() {
-    let file = File::open("fixtures/simple.tar").unwrap();
-    let subject = BlockIterator::from_stream(file);
+    let file = include_bytes!("../fixtures/simple.tar");
+    let subject = BlockIterator::from_stream(file.as_ref());
     let blocks: Vec<[u8; 512]> = subject.collect();
     assert_eq!(7, blocks.len());
 }
@@ -274,8 +272,8 @@ impl<T: Read> Iterator for EntryIterator<T> {
 
 #[test]
 fn test_entry_iterator() {
-    let file = File::open("fixtures/simple.tar").unwrap();
-    let subject = EntryIterator::from_stream(file);
+    let file = include_bytes!("../fixtures/simple.tar");
+    let subject = EntryIterator::from_stream(file.as_ref());
     let entries: Vec<Entry> = subject.collect();
     assert_eq!(3, entries.len());
     assert_eq!("1", entries[0].header.name().unwrap());
