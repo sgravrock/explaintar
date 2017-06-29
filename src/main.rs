@@ -5,9 +5,7 @@ use std::fs::File;
 
 fn main() {
     let iter = EntryIterator::from_stream(io::stdin());
-    let mut i = 0;
-
-    for entry in iter {
+    for (i, entry) in iter.enumerate() {
         let header = entry.header;
 
         if i == 0 {
@@ -33,7 +31,6 @@ fn main() {
 
         println!("Size {} bytes", header.size());
         println!("");
-        i += 1;
     }
 }
 
