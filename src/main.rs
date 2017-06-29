@@ -66,7 +66,7 @@ impl Header {
         let maybe_magic = String::from_utf8(self.magic_field().to_vec());
 
         match maybe_magic {
-            Ok(actual) => actual == String::from("ustar\0"),
+            Ok(actual) => actual == "ustar\0",
             _ => false,
         }
     }
