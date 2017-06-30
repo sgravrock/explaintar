@@ -67,7 +67,8 @@ impl Header {
     }
 
     fn is_null(&self) -> bool {
-        let offset = NAME_LEN + MODE_LEN + UID_LEN + GID_LEN + SIZE_LEN + MTIME_LEN + CHECKSUM_LEN;
+        let offset = NAME_LEN + MODE_LEN + UID_LEN + GID_LEN + SIZE_LEN +
+            MTIME_LEN + CHECKSUM_LEN;
         self.block[offset] == 0
     }
 
@@ -83,8 +84,8 @@ impl Header {
     }
 
     fn magic_field(&self) -> &[u8] {
-        let offset = NAME_LEN + MODE_LEN + UID_LEN + GID_LEN + SIZE_LEN + MTIME_LEN +
-                     CHECKSUM_LEN + TYPEFLAG_LEN + LINKNAME_LEN;
+        let offset = NAME_LEN + MODE_LEN + UID_LEN + GID_LEN + SIZE_LEN +
+            MTIME_LEN + CHECKSUM_LEN + TYPEFLAG_LEN + LINKNAME_LEN;
         &self.block[offset..(offset + MAGIC_LEN)]
     }
 
