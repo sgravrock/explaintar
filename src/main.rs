@@ -109,11 +109,13 @@ fn parse_octal(bytes: &[u8]) -> usize {
 }
 
 fn find_zero(buf: &[u8; 512], maxlen: usize) -> Option<usize> {
-    buf.iter()
-        .take(maxlen)
-        .enumerate()
-        .find(|&(_, &e)| e == 0)
-        .map(|(i, _)| i)
+    for i in 0..maxlen {
+        if buf[i] == 0 {
+            return Some(i);
+        }
+    }
+
+    None
 }
 
 #[test]
