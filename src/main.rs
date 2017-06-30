@@ -1,13 +1,9 @@
 use std::io::{self, Read};
 use std::string::FromUtf8Error;
-#[cfg(test)]
-use std::fs::File;
 
 fn main() {
     let iter = EntryIterator::from_stream(io::stdin());
-    let mut i = 0;
-
-    for entry in iter {
+    for (i, entry) in iter.enumerate() {
         let header = entry.header;
 
         if i == 0 {
@@ -28,22 +24,21 @@ fn main() {
 
         match header.name() {
             Ok(n) => println!("Name {}", n),
-            Err(e) => println!("Invalid name: {}", e)
+            Err(e) => println!("Invalid name: {}", e),
         };
 
         println!("Size {} bytes", header.size());
         println!("");
-        i += 1;
     }
 }
 
 
 struct Entry {
-    header: Header
+    header: Header,
 }
 
 struct Header {
-    block: [u8; 512]
+    block: [u8; 512],
 }
 
 const NAME_LEN: usize = 100;
@@ -58,43 +53,42 @@ const LINKNAME_LEN: usize = 100;
 const MAGIC_LEN: usize = 6;
 
 impl Header {
-    fn from_block(block: [u8;512]) -> Header {
+    fn from_block(block: [u8; 512]) -> Header {
         Header { block }
     }
 
-    fn has_magic(self: &Header) -> bool {
+    fn has_magic(&self) -> bool {
         let maybe_magic = String::from_utf8(self.magic_field().to_vec());
 
         match maybe_magic {
-            Ok(actual) => actual == String::from("ustar\0"),
+            Ok(actual) => actual == "ustar\0",
             _ => false,
         }
     }
 
-    fn is_null(self: &Header) -> bool {
-        let offset = NAME_LEN + MODE_LEN + UID_LEN + GID_LEN + SIZE_LEN +
-            MTIME_LEN + CHECKSUM_LEN;
+    fn is_null(&self) -> bool {
+        let offset = NAME_LEN + MODE_LEN + UID_LEN + GID_LEN + SIZE_LEN + MTIME_LEN + CHECKSUM_LEN;
         self.block[offset] == 0
     }
 
-    fn name(self: &Header) -> Result<String, FromUtf8Error> {
+    fn name(&self) -> Result<String, FromUtf8Error> {
         let len = find_zero(&self.block, NAME_LEN).unwrap_or(NAME_LEN);
         let bytes = self.block[0..len].to_vec();
         String::from_utf8(bytes)
     }
 
-    fn size(self: &Header) -> usize {
+    fn size(&self) -> usize {
         let bytes = self.size_field();
-        parse_octal(&bytes[0..SIZE_LEN-1]) // Ignore the terminating space.
+        parse_octal(&bytes[0..SIZE_LEN - 1]) // Ignore the terminating space.
     }
 
-    fn magic_field(self: &Header) -> &[u8] {
-        let offset = NAME_LEN + MODE_LEN + UID_LEN + GID_LEN + SIZE_LEN +
-            MTIME_LEN + CHECKSUM_LEN + TYPEFLAG_LEN + LINKNAME_LEN;
+    fn magic_field(&self) -> &[u8] {
+        let offset = NAME_LEN + MODE_LEN + UID_LEN + GID_LEN + SIZE_LEN + MTIME_LEN +
+                     CHECKSUM_LEN + TYPEFLAG_LEN + LINKNAME_LEN;
         &self.block[offset..(offset + MAGIC_LEN)]
     }
 
-    fn size_field(self: &Header) -> &[u8] {
+    fn size_field(&self) -> &[u8] {
         let offset = NAME_LEN + MODE_LEN + UID_LEN + GID_LEN;
         &self.block[offset..(offset + SIZE_LEN)]
     }
@@ -103,23 +97,23 @@ impl Header {
 // TODO: don't panic if this fails,
 // or at least panic somewhere else.
 fn parse_octal(bytes: &[u8]) -> usize {
-    bytes.iter().fold(0, |acc, b| {
-        let n = *b as usize;
-        if n < 48 || n > 55 {
-            panic!("Not an octal digit: {}", b);
-        }
-        acc * 8 + n - 48
-    })
+    bytes
+        .iter()
+        .fold(0, |acc, b| {
+            let n = *b as usize;
+            if n < 48 || n > 55 {
+                panic!("Not an octal digit: {}", b);
+            }
+            acc * 8 + n - 48
+        })
 }
 
 fn find_zero(buf: &[u8; 512], maxlen: usize) -> Option<usize> {
-    for i in 0..maxlen {
-        if buf[i] == 0 {
-            return Some(i);
-        }
-    }
-
-    None
+    buf.iter()
+        .take(maxlen)
+        .enumerate()
+        .find(|&(_, &e)| e == 0)
+        .map(|(i, _)| i)
 }
 
 #[test]
@@ -147,7 +141,8 @@ fn test_name_short() {
 #[test]
 fn test_name_exactly_100() {
     let block = block_from_visual("long________________________________________________________________________________________________x");
-    assert_eq!("long________________________________________________________________________________________________", Header::from_block(block).name().unwrap());
+    assert_eq!("long________________________________________________________________________________________________",
+               Header::from_block(block).name().unwrap());
 }
 
 #[test]
@@ -157,7 +152,7 @@ fn test_size_small() {
 }
 
 #[cfg(test)]
-fn block_from_visual(visual: &str) -> [u8;512] {
+fn block_from_visual(visual: &str) -> [u8; 512] {
     let mut block = [0; 512];
     let chars: Vec<char> = visual.chars().collect();
     let mut i = 0;
@@ -190,7 +185,7 @@ fn test_block_from_visual() {
 }
 
 fn num_data_blocks(entry_size: usize) -> usize {
-   f32::ceil(entry_size as f32 / 512.0) as usize
+    f32::ceil(entry_size as f32 / 512.0) as usize
 }
 
 #[test]
@@ -203,16 +198,16 @@ fn test_num_data_blocks() {
 
 
 struct BlockIterator<T: Read> {
-    stream: T
+    stream: T,
 }
 
-impl <T: Read> BlockIterator<T> {
+impl<T: Read> BlockIterator<T> {
     fn from_stream(stream: T) -> BlockIterator<T> {
         BlockIterator { stream }
     }
 }
 
-impl <T: Read> Iterator for BlockIterator<T> {
+impl<T: Read> Iterator for BlockIterator<T> {
     type Item = [u8; 512];
 
     fn next(&mut self) -> Option<[u8; 512]> {
@@ -221,15 +216,15 @@ impl <T: Read> Iterator for BlockIterator<T> {
             Ok(512) => Some(block),
             Ok(0) => None,
             Ok(n) => panic!("Expected to read 512 bytes but got {}", n),
-            Err(e) => panic!("Read error: {}", e)
+            Err(e) => panic!("Read error: {}", e),
         }
     }
 }
 
 #[test]
 fn test_block_iterator() {
-    let file = File::open("fixtures/simple.tar").unwrap();
-    let subject = BlockIterator::from_stream(file);
+    let file = include_bytes!("../fixtures/simple.tar");
+    let subject = BlockIterator::from_stream(file.as_ref());
     let blocks: Vec<[u8; 512]> = subject.collect();
     assert_eq!(7, blocks.len());
 }
@@ -237,14 +232,14 @@ fn test_block_iterator() {
 
 struct EntryIterator<T: Read> {
     iter: BlockIterator<T>,
-    done: bool
+    done: bool,
 }
 
-impl <T: Read> EntryIterator<T> {
+impl<T: Read> EntryIterator<T> {
     fn from_stream(stream: T) -> EntryIterator<T> {
         EntryIterator {
             iter: BlockIterator::from_stream(stream),
-            done: false
+            done: false,
         }
     }
 
@@ -263,7 +258,7 @@ impl <T: Read> EntryIterator<T> {
     }
 }
 
-impl <T: Read> Iterator for EntryIterator<T> {
+impl<T: Read> Iterator for EntryIterator<T> {
     type Item = Entry;
 
     fn next(&mut self) -> Option<Entry> {
@@ -277,12 +272,11 @@ impl <T: Read> Iterator for EntryIterator<T> {
 
 #[test]
 fn test_entry_iterator() {
-    let file = File::open("fixtures/simple.tar").unwrap();
-    let subject = EntryIterator::from_stream(file);
+    let file = include_bytes!("../fixtures/simple.tar");
+    let subject = EntryIterator::from_stream(file.as_ref());
     let entries: Vec<Entry> = subject.collect();
     assert_eq!(3, entries.len());
     assert_eq!("1", entries[0].header.name().unwrap());
     assert_eq!("513", entries[1].header.name().unwrap());
     assert_eq!(true, entries[2].header.is_null());
 }
-
